@@ -28,6 +28,7 @@
     renderPlaces();
     renderWarnings();
     bindUi();
+    setActiveDay(initialDayFromHash());
     initMap();
   });
 
@@ -716,6 +717,10 @@
       if (scrollTarget) {
         const selector = scrollTarget.getAttribute("href");
         const target = selector ? document.querySelector(selector) : null;
+        const navDayId = scrollTarget.dataset.navDayFilter;
+        if (navDayId) {
+          setActiveDay(navDayId);
+        }
         if (target) {
           event.preventDefault();
           target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1081,8 +1086,23 @@
     if (target) target.textContent = message;
   }
 
+  function initialDayFromHash() {
+    const hash = window.location.hash.replace("#", "");
+    return data.days.some((day) => day.id === hash) ? hash : "all";
+  }
+
   function setActiveDay(dayId) {
     activeDayId = normalizeActiveDayId(dayId);
+
+    document.querySelectorAll("[data-nav-day-filter]").forEach((link) => {
+      const isActive = link.dataset.navDayFilter === activeDayId;
+      link.classList.toggle("is-active", isActive);
+      if (isActive) {
+        link.setAttribute("aria-current", "page");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+    });
 
     document.querySelectorAll("[data-day-filter]").forEach((button) => {
       const isActive = button.dataset.dayFilter === activeDayId;

@@ -131,9 +131,14 @@ button {
 }
 
 .nav-tabs a:hover,
-.nav-tabs a:focus-visible {
+.nav-tabs a:focus-visible,
+.nav-tabs a.is-active {
   color: var(--ink);
   background: rgba(29, 29, 31, 0.06);
+}
+
+.nav-tabs a.is-active {
+  font-weight: 760;
 }
 
 main {
