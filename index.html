@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f5f7">
+    <title>전주 2박 3일 여행 플래너</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQ1skHyEi8dDxJY8aw/Ud39X5D1P3C0="
+      crossorigin=""
+    >
+    <link rel="stylesheet" href="styles.css">
+    <script
+      defer
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script defer src="data.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <header class="glass-nav" aria-label="여행 플래너 내비게이션">
+      <a class="brand" href="#overview" data-scroll>
+        <span class="brand-mark" aria-hidden="true">J</span>
+        <span>Jeonju Trip</span>
+      </a>
+      <nav class="nav-tabs" aria-label="주요 섹션">
+        <a href="#day1" data-scroll>6/21</a>
+        <a href="#day2" data-scroll>6/22</a>
+        <a href="#day3" data-scroll>6/23</a>
+        <a href="#map" data-scroll>Map</a>
+        <a href="#places" data-scroll>Places</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero-section" id="overview">
+        <div class="hero-copy">
+          <h1>전주 2박 3일</h1>
+          <p class="hero-subtitle">6.21 Sun - 6.23 Tue · friends trip</p>
+          <div class="hero-actions" aria-label="빠른 이동">
+            <a class="primary-button" href="#planner" data-scroll>오늘 일정 보기</a>
+            <a class="secondary-button" href="#map" data-scroll>전체 지도 보기</a>
+          </div>
+        </div>
+        <div class="overview-panel" aria-label="여행 요약">
+          <div class="overview-head">
+            <span id="dday-label">D-3</span>
+            <strong>맛집 · 테니스 · 사우나 · 해장</strong>
+          </div>
+          <div class="quick-facts" id="quick-facts"></div>
+        </div>
+      </section>
+
+      <section class="planner-section" id="planner">
+        <div class="section-heading">
+          <p class="section-label">일정과 지도</p>
+          <h2>하루 흐름을 보고, 바로 길찾기</h2>
+          <p>장소가 확정된 곳은 지도에 찍고, 사우나·카페·2차는 미정 자리로 깔끔하게 남겨뒀어요.</p>
+        </div>
+
+        <div class="day-filter" id="day-filter" aria-label="날짜 필터"></div>
+
+        <div class="planner-grid">
+          <div class="timeline-column" id="timeline" aria-live="polite"></div>
+
+          <aside class="map-column" id="map">
+            <div class="map-shell">
+              <div class="map-toolbar">
+                <div>
+                  <span class="mini-label">전체 지도</span>
+                  <h3>전주 동선</h3>
+                </div>
+                <button class="icon-button" type="button" id="fit-map" aria-label="전체 마커 보기">⌖</button>
+              </div>
+              <div id="trip-map" role="application" aria-label="전주 여행 지도"></div>
+              <div class="map-fallback" id="map-fallback" hidden>
+                <strong>지도를 불러오지 못했어요.</strong>
+                <span>네트워크가 막혀도 장소 버튼으로 Google Maps를 열 수 있어요.</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="food-section" id="food">
+        <div class="section-heading">
+          <p class="section-label">맛집 주문 가이드</p>
+          <h2>리뷰 신호 기준 추천 메뉴</h2>
+          <p>셋이서 바로 주문하기 좋게 안정적인 조합만 추렸어요.</p>
+        </div>
+        <div class="food-grid" id="food-grid"></div>
+      </section>
+
+      <section class="routes-section" id="routes">
+        <div class="section-heading">
+          <p class="section-label">정적 이동 추정</p>
+          <h2>라이브 교통 없이 보는 대략의 시간</h2>
+          <p>아래 시간은 미리 계산한 추정치예요. 실제 출발 전에는 지도 앱에서 한 번 더 확인하면 됩니다.</p>
+        </div>
+        <div class="route-board" id="route-board"></div>
+      </section>
+
+      <section class="places-section" id="places">
+        <div class="section-heading">
+          <p class="section-label">장소 모음</p>
+          <h2>확정 장소와 미정 자리</h2>
+          <p>주소가 있는 곳은 Google Maps 버튼을 붙였고, 아직 모르는 곳은 후보를 고를 자리로 남겨뒀어요.</p>
+        </div>
+        <div class="places-grid" id="places-grid"></div>
+      </section>
+
+      <section class="warnings-section" aria-label="확인하면 좋은 점">
+        <div class="warning-panel">
+          <div>
+            <p class="section-label">체크 포인트</p>
+            <h2>가기 전에 한 번만 확인</h2>
+          </div>
+          <ul id="warning-list"></ul>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <footer class="site-footer">
+      <p>정적 HTML 플래너 · 경로와 영업 정보는 출발 전 지도 앱에서 최종 확인</p>
+    </footer>
+  </body>
+</html>

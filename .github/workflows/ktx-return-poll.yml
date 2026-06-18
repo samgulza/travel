@@ -1,0 +1,49 @@
+name: Poll KTX return availability
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install requirements
+        run: |
+          python -m pip install --upgrade pip || echo "pip upgrade failed; continuing to poller."
+          python -m pip install -r requirements.txt || echo "Dependency install failed; poller will write unavailable status."
+
+      - name: Poll KTX return availability
+        env:
+          KSKILL_KTX_ID: ${{ secrets.KSKILL_KTX_ID }}
+          KSKILL_KTX_PASSWORD: ${{ secrets.KSKILL_KTX_PASSWORD }}
+        run: |
+          if [ -z "$KSKILL_KTX_ID" ] || [ -z "$KSKILL_KTX_PASSWORD" ]; then
+            echo "Korail secrets are not configured; skipping hourly poll."
+            exit 0
+          fi
+          python scripts/poll_ktx_return.py
+
+      - name: Commit updated KTX data
+        run: |
+          if git diff --quiet -- data/ktx-return.json; then
+            echo "No KTX data changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ktx-return.json
+          git commit -m "Update KTX return availability"
+          git push

@@ -1,0 +1,31 @@
+{
+  "error": {
+    "code": "missing_credentials",
+    "detail": "Set KSKILL_KTX_ID and KSKILL_KTX_PASSWORD as environment variables or in ~/.config/k-skill/secrets.env."
+  },
+  "lastChecked": "2026-06-18T10:09:08+09:00",
+  "message": "KTX 조회용 Korail 계정 정보가 없어 최신 좌석 상태를 확인하지 못했어요.",
+  "query": {
+    "date": "2026-06-23",
+    "from": "전주",
+    "passengers": 2,
+    "to": "용산",
+    "windows": [
+      "12:00",
+      "13:00",
+      "14:00",
+      "15:00",
+      "16:00",
+      "17:00",
+      "18:00",
+      "19:00",
+      "20:00",
+      "21:00",
+      "22:00"
+    ]
+  },
+  "schemaVersion": 1,
+  "source": "korail2",
+  "status": "unavailable",
+  "trains": []
+}
