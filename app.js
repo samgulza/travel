@@ -10,6 +10,7 @@
   let routeGroup;
   let toastTimer;
   let flashTimer;
+  let activeDayId = "all";
   let expenses = [];
 
   document.addEventListener("DOMContentLoaded", () => {
@@ -17,6 +18,7 @@
     renderDday();
     renderQuickFacts();
     renderDayFilter();
+    renderMapDayTabs();
     renderTimeline();
     loadKtxReturnAvailability();
     renderFoodGuides();
@@ -55,13 +57,28 @@
 
   function renderDayFilter() {
     const target = document.querySelector("#day-filter");
+    const isAllActive = activeDayId === "all";
     const buttons = [
-      `<button type="button" class="is-active" data-day-filter="all">전체 일정</button>`,
+      `<button type="button" class="${isAllActive ? "is-active" : ""}" aria-pressed="${isAllActive}" data-day-filter="all">전체 일정</button>`,
       ...data.days.map((day) => {
-        return `<button type="button" data-day-filter="${day.id}">${day.navLabel} · ${day.title}</button>`;
+        const isActive = activeDayId === day.id;
+        return `<button type="button" class="${isActive ? "is-active" : ""}" aria-pressed="${isActive}" data-day-filter="${day.id}">${day.navLabel} · ${day.title}</button>`;
       })
     ];
     target.innerHTML = buttons.join("");
+  }
+
+  function renderMapDayTabs() {
+    const target = document.querySelector("#map-day-tabs");
+    const tabs = [
+      { id: "all", label: "전체" },
+      ...data.days.map((day) => ({ id: day.id, label: day.navLabel }))
+    ];
+
+    target.innerHTML = tabs.map((tab) => {
+      const isActive = activeDayId === tab.id;
+      return `<button type="button" class="${isActive ? "is-active" : ""}" aria-pressed="${isActive}" data-map-day-filter="${tab.id}">${tab.label}</button>`;
+    }).join("");
   }
 
   function renderTimeline() {
@@ -670,6 +687,11 @@
         setActiveDay(filter.dataset.dayFilter);
       }
 
+      const mapFilter = event.target.closest("[data-map-day-filter]");
+      if (mapFilter) {
+        setActiveDay(mapFilter.dataset.mapDayFilter);
+      }
+
       const routeButton = event.target.closest(".route-summary");
       if (routeButton) {
         const card = routeButton.closest("[data-route-card]");
@@ -716,7 +738,7 @@
 
     const fitButton = document.querySelector("#fit-map");
     fitButton.addEventListener("click", () => {
-      fitMapToKnownPlaces();
+      fitMapToActivePlaces();
     });
 
     const expenseForm = document.querySelector("#expense-form");
@@ -1020,21 +1042,26 @@
   }
 
   function setActiveDay(dayId) {
+    activeDayId = normalizeActiveDayId(dayId);
+
     document.querySelectorAll("[data-day-filter]").forEach((button) => {
-      button.classList.toggle("is-active", button.dataset.dayFilter === dayId);
+      const isActive = button.dataset.dayFilter === activeDayId;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+
+    document.querySelectorAll("[data-map-day-filter]").forEach((button) => {
+      const isActive = button.dataset.mapDayFilter === activeDayId;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
     });
 
     document.querySelectorAll("[data-day-section]").forEach((section) => {
-      section.classList.toggle("is-hidden", dayId !== "all" && section.dataset.daySection !== dayId);
+      section.classList.toggle("is-hidden", activeDayId !== "all" && section.dataset.daySection !== activeDayId);
     });
 
-    if (dayId === "all") {
-      fitMapToKnownPlaces();
-      return;
-    }
-
-    const places = knownPlaces().filter((place) => place.dayRefs.includes(dayId));
-    fitMapToPlaces(places);
+    renderMapLayers();
+    fitMapToActivePlaces();
   }
 
   function initMap() {
@@ -1059,7 +1086,20 @@
     markerGroup = L.layerGroup().addTo(map);
     routeGroup = L.layerGroup().addTo(map);
 
-    knownPlaces().forEach((place) => {
+    renderMapLayers();
+    fitMapToActivePlaces();
+  }
+
+  function renderMapLayers() {
+    drawMapMarkers();
+    drawRouteLines();
+  }
+
+  function drawMapMarkers() {
+    if (!markerGroup) return;
+    markerGroup.clearLayers();
+
+    knownPlacesForDay(activeDayId).forEach((place) => {
       const marker = L.marker([place.lat, place.lon], {
         icon: L.divIcon({
           className: "",
@@ -1071,21 +1111,16 @@
       marker.bindPopup(renderMapPopup(place));
       marker.addTo(markerGroup);
     });
-
-    drawRouteLines();
-    fitMapToKnownPlaces();
   }
 
   function drawRouteLines() {
     if (!routeGroup) return;
     routeGroup.clearLayers();
 
-    data.routes
-      .filter((route) => !route.pending)
+    routesForDay(activeDayId)
       .forEach((route) => {
         const from = placeById.get(route.fromId);
         const to = placeById.get(route.toId);
-        if (!hasCoords(from) || !hasCoords(to)) return;
 
         const day = dayById.get(route.dayId);
         L.polyline(
@@ -1103,8 +1138,8 @@
       });
   }
 
-  function fitMapToKnownPlaces() {
-    fitMapToPlaces(knownPlaces());
+  function fitMapToActivePlaces() {
+    fitMapToPlaces(knownPlacesForDay(activeDayId));
   }
 
   function fitMapToPlaces(places) {
@@ -1222,13 +1257,44 @@
     return data.places.filter(hasCoords);
   }
 
+  function knownPlacesForDay(dayId) {
+    if (dayId === "all") return knownPlaces();
+
+    const dayPlaceIds = new Set();
+    const day = dayById.get(dayId);
+    day?.events.forEach((event) => {
+      if (event.placeId) dayPlaceIds.add(event.placeId);
+    });
+    data.routes
+      .filter((route) => route.dayId === dayId)
+      .forEach((route) => {
+        dayPlaceIds.add(route.fromId);
+        dayPlaceIds.add(route.toId);
+      });
+
+    return knownPlaces().filter((place) => place.dayRefs.includes(dayId) || dayPlaceIds.has(place.id));
+  }
+
+  function routesForDay(dayId) {
+    return data.routes.filter((route) => {
+      if (dayId !== "all" && route.dayId !== dayId) return false;
+      if (route.pending) return false;
+      return hasCoords(placeById.get(route.fromId)) && hasCoords(placeById.get(route.toId));
+    });
+  }
+
   function hasCoords(place) {
     return Boolean(place && Number.isFinite(place.lat) && Number.isFinite(place.lon));
   }
 
+  function normalizeActiveDayId(value) {
+    if (value === "all") return "all";
+    return dayById.has(value) ? value : "all";
+  }
+
   function markerToneClass(place) {
     if (place.kind === "stay") return "tone-stay";
-    const firstDay = dayById.get(place.dayRefs[0]);
+    const firstDay = activeDayId === "all" ? dayById.get(place.dayRefs[0]) : dayById.get(activeDayId);
     if (firstDay?.tone === "ink") return "tone-ink";
     if (firstDay?.tone === "warm") return "tone-warm";
     return "tone-blue";
