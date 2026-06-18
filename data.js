@@ -23,6 +23,100 @@ window.TRAVEL_DATA = {
     message: "아직 KTX 좌석 조회 데이터가 없어요. GitHub Actions가 돌면 이 카드가 최신 상태로 바뀝니다.",
     trains: []
   },
+  expenses: {
+    storageKey: "jeonju-trip-expenses-v1",
+    categories: ["식당", "카페", "숙소/집", "술/간식", "교통", "기타"],
+    plannedItems: [
+      {
+        id: "plan-day1-lunch-hyangmigak",
+        category: "식당",
+        title: "조기종의향미각 전주점",
+        dayId: "day1",
+        placeId: "hyangmigak",
+        memo: "6/21 점심. 꼬막짬뽕과 탕수육 후보."
+      },
+      {
+        id: "plan-day1-dinner-black-pork",
+        category: "식당",
+        title: "지리산흑돈",
+        dayId: "day1",
+        placeId: "jirisan-black-pork",
+        memo: "6/21 저녁 고기."
+      },
+      {
+        id: "plan-day1-home-snacks",
+        category: "술/간식",
+        title: "숙소 맥주/간식",
+        dayId: "day1",
+        placeId: "stay-gijiro70",
+        memo: "숙소 복귀 후 편의점/배달 비용 자리."
+      },
+      {
+        id: "plan-day2-lunch-pisundae",
+        category: "식당",
+        title: "금암피순대",
+        dayId: "day2",
+        placeId: "geumam-pisundae",
+        memo: "6/22 점심 순대국밥."
+      },
+      {
+        id: "plan-day2-sauna",
+        category: "기타",
+        title: "사우나",
+        dayId: "day2",
+        placeId: "unknown-sauna",
+        memo: "장소 확정 후 실제 결제 금액 입력."
+      },
+      {
+        id: "plan-day2-dinner-woosintang",
+        category: "식당",
+        title: "두거리우신탕 본점",
+        dayId: "day2",
+        placeId: "dugeori-woosintang",
+        memo: "6/22 저녁 우신전골."
+      },
+      {
+        id: "plan-day2-after-drinks",
+        category: "술/간식",
+        title: "2차 술/간식",
+        dayId: "day2",
+        placeId: "unknown-after",
+        memo: "2차 장소 정해지면 이름을 바꿔도 돼요."
+      },
+      {
+        id: "plan-day2-home-supplies",
+        category: "숙소/집",
+        title: "숙소 장보기/배달",
+        dayId: "day2",
+        placeId: "stay-gijiro70",
+        memo: "집/숙소에서 같이 쓴 비용."
+      },
+      {
+        id: "plan-day3-breakfast-kongnamul",
+        category: "식당",
+        title: "오거리콩나물해장국",
+        dayId: "day3",
+        placeId: "ogori-kongnamul",
+        memo: "6/23 해장."
+      },
+      {
+        id: "plan-day3-cafe",
+        category: "카페",
+        title: "카페",
+        dayId: "day3",
+        placeId: "unknown-cafe",
+        memo: "후보 확정 후 이름을 바꿔도 돼요."
+      },
+      {
+        id: "plan-day3-return-transport",
+        category: "교통",
+        title: "복귀 교통/KTX",
+        dayId: "day3",
+        placeId: "jeonju-station",
+        memo: "KTX 카드와 별도로 실제 결제한 복귀 교통비를 적는 자리."
+      }
+    ]
+  },
   days: [
     {
       id: "day1",

@@ -2,12 +2,18 @@
   const data = window.TRAVEL_DATA;
   const placeById = new Map(data.places.map((place) => [place.id, place]));
   const dayById = new Map(data.days.map((day) => [day.id, day]));
+  const tripMembers = data.trip.people;
+  const expenseCategories = data.expenses?.categories || ["식당", "카페", "숙소/집", "술/간식", "교통", "기타"];
+  const expenseStorageKey = data.expenses?.storageKey || "jeonju-trip-expenses-v1";
   let map;
   let markerGroup;
   let routeGroup;
   let toastTimer;
+  let flashTimer;
+  let expenses = [];
 
   document.addEventListener("DOMContentLoaded", () => {
+    expenses = loadExpenses();
     renderDday();
     renderQuickFacts();
     renderDayFilter();
@@ -15,6 +21,8 @@
     loadKtxReturnAvailability();
     renderFoodGuides();
     renderRoutes();
+    renderExpenseFormOptions();
+    renderExpenses();
     renderPlaces();
     renderWarnings();
     bindUi();
@@ -318,6 +326,286 @@
     `;
   }
 
+  function renderExpenseFormOptions() {
+    const category = document.querySelector("#expense-category");
+    const day = document.querySelector("#expense-day");
+    const paidBy = document.querySelector("#expense-paid-by");
+
+    category.innerHTML = expenseCategories.map((item) => `<option value="${escapeAttr(item)}">${escapeHtml(item)}</option>`).join("");
+    day.innerHTML = data.days.map((item) => `<option value="${escapeAttr(item.id)}">${escapeHtml(item.navLabel)} · ${escapeHtml(item.title)}</option>`).join("");
+    paidBy.innerHTML = tripMembers.map((member) => `<option value="${escapeAttr(member)}">${escapeHtml(member)}</option>`).join("");
+  }
+
+  function renderExpenses() {
+    renderExpenseSummary();
+    renderExpenseList();
+    updateExpenseSaveState("브라우저에 자동 저장됩니다.");
+  }
+
+  function renderExpenseSummary() {
+    const summaryTarget = document.querySelector("#expense-summary");
+    const balanceTarget = document.querySelector("#expense-balances");
+    const settlementTarget = document.querySelector("#expense-settlements");
+    const totals = calculateExpenseTotals();
+    const enteredCount = totals.validRows.length;
+    const plannedCount = expenses.filter((row) => row.source === "planned").length;
+
+    summaryTarget.innerHTML = [
+      expenseMetricCard("총 지출", formatWon(totals.totalSpend), `${enteredCount}건 입력됨`),
+      expenseMetricCard("전체 /3 기준 1인", formatWon(totals.equalShare), "모든 금액을 셋이 똑같이 보면"),
+      expenseMetricCard("입력 대기", `${Math.max(expenses.length - enteredCount, 0)}건`, `기본 예정 ${plannedCount}건 포함`),
+      expenseMetricCard("정산 상태", totals.settlements.length ? `${totals.settlements.length}건 송금` : "정산 완료", "금액 입력 시 자동 계산")
+    ].join("");
+
+    balanceTarget.innerHTML = tripMembers.map((member) => renderMemberBalance(totals.members[member])).join("");
+    settlementTarget.innerHTML = renderSettlementPanel(totals);
+  }
+
+  function renderExpenseList() {
+    const target = document.querySelector("#expense-list");
+    target.innerHTML = expenses.map(renderExpenseRow).join("");
+  }
+
+  function expenseMetricCard(label, value, note) {
+    return `
+      <article class="expense-metric">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+        <small>${escapeHtml(note)}</small>
+      </article>
+    `;
+  }
+
+  function renderMemberBalance(member) {
+    const tone = member.balance > 0.5 ? "is-credit" : member.balance < -0.5 ? "is-debt" : "is-even";
+    const balanceCopy = member.balance > 0.5
+      ? `${formatWon(member.balance)} 받을 돈`
+      : member.balance < -0.5
+        ? `${formatWon(Math.abs(member.balance))} 보낼 돈`
+        : "정산 완료";
+
+    return `
+      <article class="balance-card ${tone}">
+        <div>
+          <span>${escapeHtml(member.name)}</span>
+          <strong>${escapeHtml(balanceCopy)}</strong>
+        </div>
+        <dl>
+          <div>
+            <dt>결제</dt>
+            <dd>${formatWon(member.paid)}</dd>
+          </div>
+          <div>
+            <dt>부담</dt>
+            <dd>${formatWon(member.owed)}</dd>
+          </div>
+        </dl>
+      </article>
+    `;
+  }
+
+  function renderSettlementPanel(totals) {
+    if (!totals.validRows.length) {
+      return `
+        <div>
+          <span class="mini-label">Settlement</span>
+          <h3>아직 입력된 금액이 없어요</h3>
+          <p>각 예정 항목에 실제 결제 금액과 결제자를 넣으면 받을 사람과 보낼 금액이 여기에 떠요.</p>
+        </div>
+      `;
+    }
+
+    if (!totals.settlements.length) {
+      return `
+        <div>
+          <span class="mini-label">Settlement</span>
+          <h3>지금은 서로 보낼 돈이 없어요</h3>
+          <p>현재 입력값 기준으로 결제액과 부담액이 거의 맞습니다.</p>
+        </div>
+      `;
+    }
+
+    return `
+      <div>
+        <span class="mini-label">Settlement</span>
+        <h3>이렇게 보내면 끝</h3>
+        <p>각 행의 체크된 멤버만 나눠 내는 기준으로 계산했어요.</p>
+      </div>
+      <ul class="settlement-list">
+        ${totals.settlements.map((item) => `
+          <li>
+            <strong>${escapeHtml(item.from)} → ${escapeHtml(item.to)}</strong>
+            <span>${formatWon(item.amount)}</span>
+          </li>
+        `).join("")}
+      </ul>
+    `;
+  }
+
+  function renderExpenseRow(row) {
+    const source = renderExpenseSource(row);
+    const amountValue = Number.isFinite(row.amount) && row.amount > 0 ? formatNumber(row.amount) : "";
+    const perPerson = formatRowSplit(row);
+    const rowKind = row.source === "planned" ? "예정" : "추가";
+    const deleteAction = row.source === "custom"
+      ? `<button class="small-button danger" type="button" data-expense-delete="${escapeAttr(row.id)}">삭제</button>`
+      : `<span class="small-button" aria-disabled="true">기본 항목</span>`;
+
+    return `
+      <article class="expense-row" data-expense-row="${escapeAttr(row.id)}">
+        <div class="expense-row-head">
+          <div>
+            <span class="expense-kind">${rowKind}</span>
+            <strong>${escapeHtml(row.title || "제목 없음")}</strong>
+          </div>
+          <div class="expense-row-total">
+            <span data-expense-split-preview>${perPerson}</span>
+            ${deleteAction}
+          </div>
+        </div>
+
+        <div class="expense-row-grid">
+          <label>
+            <span>분류</span>
+            <select data-expense-id="${escapeAttr(row.id)}" data-expense-field="category">
+              ${expenseCategories.map((item) => `<option value="${escapeAttr(item)}"${item === row.category ? " selected" : ""}>${escapeHtml(item)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>장소/제목</span>
+            <input type="text" value="${escapeAttr(row.title)}" data-expense-id="${escapeAttr(row.id)}" data-expense-field="title" autocomplete="off">
+          </label>
+          <label>
+            <span>날짜</span>
+            <select data-expense-id="${escapeAttr(row.id)}" data-expense-field="dayId">
+              ${data.days.map((day) => `<option value="${escapeAttr(day.id)}"${day.id === row.dayId ? " selected" : ""}>${escapeHtml(day.navLabel)} · ${escapeHtml(day.title)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>금액</span>
+            <input type="text" inputmode="numeric" value="${escapeAttr(amountValue)}" placeholder="0" data-expense-id="${escapeAttr(row.id)}" data-expense-field="amount" autocomplete="off">
+            <small class="field-error" data-expense-error></small>
+          </label>
+          <label>
+            <span>결제자</span>
+            <select data-expense-id="${escapeAttr(row.id)}" data-expense-field="paidBy">
+              ${tripMembers.map((member) => `<option value="${escapeAttr(member)}"${member === row.paidBy ? " selected" : ""}>${escapeHtml(member)}</option>`).join("")}
+            </select>
+          </label>
+          <label>
+            <span>나눌 인원</span>
+            <input type="number" min="1" max="${tripMembers.length}" step="1" value="${escapeAttr(row.splitCount)}" data-expense-id="${escapeAttr(row.id)}" data-expense-field="splitCount">
+          </label>
+        </div>
+
+        <div class="expense-row-foot">
+          <div class="expense-members" role="group" aria-label="${escapeAttr(row.title)} 정산 대상">
+            ${tripMembers.map((member) => `
+              <label class="member-toggle${row.participants.includes(member) ? " is-checked" : ""}">
+                <input type="checkbox" value="${escapeAttr(member)}" data-expense-id="${escapeAttr(row.id)}" data-expense-participant${row.participants.includes(member) ? " checked" : ""}>
+                <span>${escapeHtml(member)}</span>
+              </label>
+            `).join("")}
+          </div>
+          <label class="expense-memo-field">
+            <span>메모</span>
+            <input type="text" value="${escapeAttr(row.memo)}" placeholder="선택 입력" data-expense-id="${escapeAttr(row.id)}" data-expense-field="memo" autocomplete="off">
+          </label>
+          <div class="expense-source">${source}</div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderExpenseSource(row) {
+    const day = dayById.get(row.dayId);
+    const place = placeById.get(row.placeId);
+    const sourceText = [
+      day?.navLabel,
+      place?.shortName || place?.name
+    ].filter(Boolean).join(" · ");
+
+    if (!sourceText) return `<span class="source-muted">직접 추가</span>`;
+
+    return `
+      <span class="source-muted">${escapeHtml(sourceText)}</span>
+      <button class="small-button" type="button" data-expense-jump-place="${escapeAttr(row.placeId || "")}" data-expense-jump-day="${escapeAttr(row.dayId || "")}">일정 보기</button>
+    `;
+  }
+
+  function calculateExpenseTotals() {
+    const members = Object.fromEntries(tripMembers.map((member) => [
+      member,
+      { name: member, paid: 0, owed: 0, balance: 0 }
+    ]));
+    const validRows = [];
+    let totalSpend = 0;
+
+    expenses.forEach((row) => {
+      if (!Number.isFinite(row.amount) || row.amount <= 0) return;
+      if (!members[row.paidBy]) return;
+      const participants = normalizeParticipants(row.participants, row.splitCount);
+      if (!participants.length) return;
+
+      const splitCount = participants.length;
+      const share = row.amount / splitCount;
+      totalSpend += row.amount;
+      validRows.push(row);
+      members[row.paidBy].paid += row.amount;
+      participants.forEach((member) => {
+        members[member].owed += share;
+      });
+    });
+
+    Object.values(members).forEach((member) => {
+      member.balance = member.paid - member.owed;
+    });
+
+    return {
+      totalSpend,
+      equalShare: totalSpend / tripMembers.length,
+      members,
+      validRows,
+      settlements: calculateSettlements(members)
+    };
+  }
+
+  function calculateSettlements(members) {
+    const creditors = Object.values(members)
+      .map((member) => ({ name: member.name, amount: roundWon(member.balance) }))
+      .filter((member) => member.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+    const debtors = Object.values(members)
+      .map((member) => ({ name: member.name, amount: roundWon(Math.abs(member.balance)) }))
+      .filter((member) => member.amount > 0 && members[member.name].balance < 0)
+      .sort((a, b) => b.amount - a.amount);
+    const settlements = [];
+    let debtorIndex = 0;
+    let creditorIndex = 0;
+
+    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+      const debtor = debtors[debtorIndex];
+      const creditor = creditors[creditorIndex];
+      const amount = Math.min(debtor.amount, creditor.amount);
+
+      if (amount > 0) {
+        settlements.push({ from: debtor.name, to: creditor.name, amount });
+      }
+
+      debtor.amount -= amount;
+      creditor.amount -= amount;
+      if (debtor.amount <= 0) debtorIndex += 1;
+      if (creditor.amount <= 0) creditorIndex += 1;
+    }
+
+    return settlements.filter((item) => item.amount > 0);
+  }
+
+  function formatRowSplit(row) {
+    if (!Number.isFinite(row.amount) || row.amount <= 0) return `1인 금액 대기 /${row.splitCount}`;
+    return `1인 ${formatWon(row.amount / row.splitCount)} /${row.splitCount}`;
+  }
+
   function renderPlaces() {
     const target = document.querySelector("#places-grid");
     target.innerHTML = data.places.map((place) => {
@@ -389,16 +677,346 @@
         routeButton.setAttribute("aria-expanded", String(isOpen));
       }
 
+      const jumpButton = event.target.closest("[data-expense-jump-place]");
+      if (jumpButton) {
+        jumpToExpenseSource(jumpButton.dataset.expenseJumpPlace, jumpButton.dataset.expenseJumpDay);
+      }
+
+      const deleteButton = event.target.closest("[data-expense-delete]");
+      if (deleteButton) {
+        deleteExpenseRow(deleteButton.dataset.expenseDelete);
+      }
+
+      if (event.target.closest("#clear-expense-amounts")) {
+        clearExpenseAmounts();
+      }
+
+      if (event.target.closest("#reset-expenses")) {
+        resetExpenseRows();
+      }
+
       const noteButton = event.target.closest("[data-note]");
       if (noteButton) {
         showToast(noteButton.dataset.note);
       }
     });
 
+    document.addEventListener("input", (event) => {
+      const field = event.target.closest("[data-expense-field]");
+      if (field) handleExpenseFieldInput(field);
+    });
+
+    document.addEventListener("change", (event) => {
+      const field = event.target.closest("[data-expense-field]");
+      if (field) handleExpenseFieldChange(field);
+
+      const participant = event.target.closest("[data-expense-participant]");
+      if (participant) handleExpenseParticipantChange(participant);
+    });
+
     const fitButton = document.querySelector("#fit-map");
     fitButton.addEventListener("click", () => {
       fitMapToKnownPlaces();
     });
+
+    const expenseForm = document.querySelector("#expense-form");
+    expenseForm.addEventListener("submit", handleExpenseSubmit);
+    expenseForm.elements.amount.addEventListener("input", () => {
+      validateExpenseFormAmount(expenseForm);
+    });
+    expenseForm.elements.amount.addEventListener("blur", () => {
+      const parsed = parseCurrency(expenseForm.elements.amount.value);
+      if (parsed.valid && !parsed.empty) {
+        expenseForm.elements.amount.value = formatNumber(parsed.amount);
+      }
+    });
+  }
+
+  function handleExpenseSubmit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const title = form.elements.title.value.trim();
+    const amount = parseCurrency(form.elements.amount.value);
+    const splitCount = clampSplitCount(form.elements.splitCount.value);
+
+    if (!title) {
+      showToast("장소나 제목을 먼저 적어주세요.");
+      form.elements.title.focus();
+      return;
+    }
+
+    if (!amount.valid || amount.empty || amount.amount <= 0) {
+      showToast("금액은 0보다 큰 숫자로 입력해주세요.");
+      form.elements.amount.classList.add("is-invalid");
+      form.elements.amount.focus();
+      return;
+    }
+
+    expenses.push(normalizeExpense({
+      id: createExpenseId(),
+      source: "custom",
+      category: form.elements.category.value,
+      title,
+      dayId: form.elements.dayId.value,
+      amount: amount.amount,
+      paidBy: form.elements.paidBy.value,
+      splitCount,
+      participants: tripMembers.slice(0, splitCount),
+      memo: form.elements.memo.value.trim()
+    }));
+
+    saveExpenses();
+    renderExpenses();
+    form.reset();
+    form.elements.splitCount.value = tripMembers.length;
+    form.elements.amount.classList.remove("is-invalid");
+    showToast("새 지출을 추가했어요.");
+  }
+
+  function handleExpenseFieldInput(field) {
+    const row = findExpense(field.dataset.expenseId);
+    if (!row) return;
+
+    if (field.dataset.expenseField === "amount") {
+      updateExpenseAmount(row, field);
+      return;
+    }
+
+    if (field.dataset.expenseField === "title" || field.dataset.expenseField === "memo") {
+      row[field.dataset.expenseField] = field.value.trim();
+      saveExpenses();
+      updateExpenseSaveState("저장됨");
+    }
+  }
+
+  function handleExpenseFieldChange(field) {
+    const row = findExpense(field.dataset.expenseId);
+    if (!row) return;
+
+    const fieldName = field.dataset.expenseField;
+    if (fieldName === "amount") {
+      if (updateExpenseAmount(row, field) && Number.isFinite(row.amount) && row.amount > 0) {
+        field.value = formatNumber(row.amount);
+      }
+      return;
+    }
+
+    if (fieldName === "splitCount") {
+      row.splitCount = clampSplitCount(field.value);
+      row.participants = normalizeParticipants(row.participants, row.splitCount);
+      saveExpenses();
+      renderExpenses();
+      return;
+    }
+
+    if (fieldName === "category") {
+      row.category = validCategory(field.value);
+    }
+
+    if (fieldName === "dayId") {
+      row.dayId = validDayId(field.value);
+    }
+
+    if (fieldName === "paidBy") {
+      row.paidBy = validMember(field.value);
+    }
+
+    if (fieldName === "title" || fieldName === "memo") {
+      row[fieldName] = field.value.trim();
+    }
+
+    saveExpenses();
+    renderExpenseSummary();
+    updateExpenseSaveState("저장됨");
+  }
+
+  function handleExpenseParticipantChange(input) {
+    const row = findExpense(input.dataset.expenseId);
+    if (!row) return;
+
+    const rowElement = input.closest("[data-expense-row]");
+    const checked = Array.from(rowElement.querySelectorAll("[data-expense-participant]:checked"))
+      .map((item) => item.value)
+      .filter((member) => tripMembers.includes(member));
+
+    if (!checked.length) {
+      input.checked = true;
+      showToast("정산 대상은 최소 1명이어야 해요.");
+      return;
+    }
+
+    row.participants = uniqueMembers(checked);
+    row.splitCount = row.participants.length;
+    saveExpenses();
+    renderExpenses();
+  }
+
+  function updateExpenseAmount(row, field) {
+    const parsed = parseCurrency(field.value);
+    const rowElement = field.closest("[data-expense-row]");
+    const error = rowElement?.querySelector("[data-expense-error]");
+
+    field.classList.toggle("is-invalid", !parsed.valid);
+    if (error) error.textContent = parsed.valid ? "" : "숫자만 입력해주세요.";
+
+    if (!parsed.valid) return false;
+
+    row.amount = parsed.empty ? null : parsed.amount;
+    saveExpenses();
+    updateExpenseRowPreview(rowElement, row);
+    renderExpenseSummary();
+    updateExpenseSaveState("저장됨");
+    return true;
+  }
+
+  function updateExpenseRowPreview(rowElement, row) {
+    const preview = rowElement?.querySelector("[data-expense-split-preview]");
+    if (preview) preview.textContent = formatRowSplit(row);
+  }
+
+  function validateExpenseFormAmount(form) {
+    const parsed = parseCurrency(form.elements.amount.value);
+    form.elements.amount.classList.toggle("is-invalid", !parsed.valid);
+    return parsed.valid;
+  }
+
+  function deleteExpenseRow(id) {
+    const row = findExpense(id);
+    if (!row || row.source !== "custom") return;
+    if (!window.confirm(`"${row.title || "추가 지출"}" 항목을 삭제할까요?`)) return;
+
+    expenses = expenses.filter((item) => item.id !== id);
+    saveExpenses();
+    renderExpenses();
+    showToast("추가 지출을 삭제했어요.");
+  }
+
+  function clearExpenseAmounts() {
+    if (!window.confirm("모든 항목의 금액만 비울까요? 제목, 메모, 결제자와 나눌 멤버는 그대로 둡니다.")) return;
+
+    expenses = expenses.map((row) => ({ ...row, amount: null }));
+    saveExpenses();
+    renderExpenses();
+    showToast("금액만 비웠어요.");
+  }
+
+  function resetExpenseRows() {
+    if (!window.confirm("직접 추가한 항목과 입력 금액을 지우고 기본 예정 항목으로 되돌릴까요?")) return;
+
+    expenses = seedExpenseRows();
+    saveExpenses();
+    renderExpenses();
+    showToast("기본 정산 항목으로 되돌렸어요.");
+  }
+
+  function jumpToExpenseSource(placeId, dayId) {
+    if (dayId) setActiveDay(dayId);
+
+    const cards = Array.from(document.querySelectorAll("#timeline [data-place-card], #places-grid [data-place-card]"));
+    const target = cards.find((card) => card.dataset.placeCard === placeId);
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    clearTimeout(flashTimer);
+    document.querySelectorAll(".is-flashed").forEach((item) => item.classList.remove("is-flashed"));
+    target.classList.add("is-flashed");
+    flashTimer = setTimeout(() => {
+      target.classList.remove("is-flashed");
+    }, 1800);
+  }
+
+  function loadExpenses() {
+    const seed = seedExpenseRows();
+    let saved = null;
+
+    try {
+      saved = JSON.parse(window.localStorage.getItem(expenseStorageKey));
+    } catch (error) {
+      saved = null;
+    }
+
+    if (!saved || !Array.isArray(saved.items)) return seed;
+
+    const savedById = new Map(saved.items.map((row) => [row.id, row]));
+    const mergedSeed = seed.map((row) => normalizeExpense({
+      ...row,
+      ...(savedById.get(row.id) || {}),
+      source: "planned",
+      id: row.id,
+      placeId: row.placeId
+    }));
+    const seedIds = new Set(seed.map((row) => row.id));
+    const customRows = saved.items
+      .filter((row) => !seedIds.has(row.id))
+      .map((row) => normalizeExpense({ ...row, source: row.source === "planned" ? "custom" : row.source }));
+
+    return [...mergedSeed, ...customRows];
+  }
+
+  function saveExpenses() {
+    try {
+      window.localStorage.setItem(expenseStorageKey, JSON.stringify({
+        version: 1,
+        savedAt: new Date().toISOString(),
+        items: expenses.map(serializeExpense)
+      }));
+    } catch (error) {
+      updateExpenseSaveState("저장 실패: 브라우저 저장 공간을 확인해주세요.");
+    }
+  }
+
+  function serializeExpense(row) {
+    return {
+      id: row.id,
+      source: row.source,
+      category: row.category,
+      title: row.title,
+      dayId: row.dayId,
+      placeId: row.placeId || "",
+      amount: Number.isFinite(row.amount) ? row.amount : null,
+      paidBy: row.paidBy,
+      splitCount: row.splitCount,
+      participants: row.participants,
+      memo: row.memo
+    };
+  }
+
+  function seedExpenseRows() {
+    return (data.expenses?.plannedItems || []).map((item) => normalizeExpense({
+      ...item,
+      source: "planned",
+      amount: null,
+      paidBy: tripMembers[0],
+      splitCount: tripMembers.length,
+      participants: tripMembers,
+      memo: item.memo || ""
+    }));
+  }
+
+  function normalizeExpense(row) {
+    const splitCount = clampSplitCount(row.splitCount);
+    return {
+      id: row.id || createExpenseId(),
+      source: row.source === "planned" ? "planned" : "custom",
+      category: validCategory(row.category),
+      title: String(row.title || "").trim() || "제목 없음",
+      dayId: validDayId(row.dayId),
+      placeId: row.placeId || "",
+      amount: sanitizeAmount(row.amount),
+      paidBy: validMember(row.paidBy),
+      splitCount,
+      participants: normalizeParticipants(row.participants, splitCount),
+      memo: String(row.memo || "").trim()
+    };
+  }
+
+  function findExpense(id) {
+    return expenses.find((row) => row.id === id);
+  }
+
+  function updateExpenseSaveState(message) {
+    const target = document.querySelector("#expense-save-state");
+    if (target) target.textContent = message;
   }
 
   function setActiveDay(dayId) {
@@ -520,6 +1138,80 @@
         <strong>${value}</strong>
       </article>
     `;
+  }
+
+  function parseCurrency(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return { valid: true, empty: true, amount: null };
+
+    const cleaned = raw.replace(/[,\s원₩]/g, "");
+    if (!/^\d+$/.test(cleaned)) return { valid: false, empty: false, amount: null };
+
+    const amount = Number(cleaned);
+    if (!Number.isSafeInteger(amount) || amount < 0) return { valid: false, empty: false, amount: null };
+    return { valid: true, empty: false, amount };
+  }
+
+  function sanitizeAmount(value) {
+    if (value === null || value === undefined || value === "") return null;
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) return null;
+    return Math.round(amount);
+  }
+
+  function formatWon(value) {
+    return `${formatNumber(roundWon(value))}원`;
+  }
+
+  function formatNumber(value) {
+    return new Intl.NumberFormat("ko-KR").format(roundWon(value));
+  }
+
+  function roundWon(value) {
+    if (!Number.isFinite(value)) return 0;
+    return Math.round(value);
+  }
+
+  function clampSplitCount(value) {
+    const count = Number.parseInt(value, 10);
+    if (!Number.isFinite(count)) return tripMembers.length;
+    return Math.min(Math.max(count, 1), tripMembers.length);
+  }
+
+  function validCategory(value) {
+    return expenseCategories.includes(value) ? value : expenseCategories[0];
+  }
+
+  function validDayId(value) {
+    return dayById.has(value) ? value : data.days[0].id;
+  }
+
+  function validMember(value) {
+    return tripMembers.includes(value) ? value : tripMembers[0];
+  }
+
+  function normalizeParticipants(value, splitCount) {
+    const requestedCount = clampSplitCount(splitCount);
+    const unique = uniqueMembers(Array.isArray(value) ? value : []);
+    const filled = [
+      ...unique,
+      ...tripMembers.filter((member) => !unique.includes(member))
+    ];
+
+    return filled.slice(0, requestedCount);
+  }
+
+  function uniqueMembers(value) {
+    const seen = new Set();
+    return value.filter((member) => {
+      if (!tripMembers.includes(member) || seen.has(member)) return false;
+      seen.add(member);
+      return true;
+    });
+  }
+
+  function createExpenseId() {
+    return `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
   function dayLabels(place) {

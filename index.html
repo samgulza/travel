@@ -32,6 +32,7 @@
         <a href="#day2" data-scroll>6/22</a>
         <a href="#day3" data-scroll>6/23</a>
         <a href="#map" data-scroll>Map</a>
+        <a href="#expenses" data-scroll>정산</a>
         <a href="#places" data-scroll>Places</a>
       </nav>
     </header>
@@ -44,6 +45,7 @@
           <div class="hero-actions" aria-label="빠른 이동">
             <a class="primary-button" href="#planner" data-scroll>오늘 일정 보기</a>
             <a class="secondary-button" href="#map" data-scroll>전체 지도 보기</a>
+            <a class="secondary-button" href="#expenses" data-scroll>정산표 열기</a>
           </div>
         </div>
         <div class="overview-panel" aria-label="여행 요약">
@@ -102,6 +104,81 @@
           <p>아래 시간은 미리 계산한 추정치예요. 실제 출발 전에는 지도 앱에서 한 번 더 확인하면 됩니다.</p>
         </div>
         <div class="route-board" id="route-board"></div>
+      </section>
+
+      <section class="expenses-section" id="expenses">
+        <div class="section-heading">
+          <p class="section-label">정산</p>
+          <h2>쓴 돈을 넣으면 바로 나눠보기</h2>
+          <p>식당·카페·숙소·2차 후보를 미리 깔아뒀어요. 금액과 결제자만 채우면 셋 기준 1인 금액과 보낼 돈이 바로 계산됩니다.</p>
+        </div>
+
+        <div class="expense-shell">
+          <div class="expense-topline">
+            <div>
+              <span class="mini-label">Trip money</span>
+              <h3>전주 3인 정산표</h3>
+            </div>
+            <div class="expense-actions">
+              <button class="small-button" type="button" id="clear-expense-amounts">금액만 비우기</button>
+              <button class="small-button" type="button" id="reset-expenses">기본 항목 복구</button>
+            </div>
+          </div>
+
+          <div class="expense-summary-grid" id="expense-summary" aria-live="polite"></div>
+          <div class="balance-grid" id="expense-balances"></div>
+
+          <div class="settlement-panel" id="expense-settlements" aria-live="polite"></div>
+
+          <form class="expense-form" id="expense-form">
+            <div class="expense-form-head">
+              <div>
+                <span class="mini-label">Custom row</span>
+                <h3>새 지출 추가</h3>
+              </div>
+              <button class="primary-button" type="submit">추가</button>
+            </div>
+            <div class="expense-form-grid">
+              <label>
+                <span>분류</span>
+                <select name="category" id="expense-category"></select>
+              </label>
+              <label>
+                <span>장소/제목</span>
+                <input name="title" type="text" placeholder="예: 객리단길 카페" autocomplete="off" required>
+              </label>
+              <label>
+                <span>날짜</span>
+                <select name="dayId" id="expense-day"></select>
+              </label>
+              <label>
+                <span>금액</span>
+                <input name="amount" type="text" inputmode="numeric" placeholder="예: 48000" autocomplete="off" required>
+              </label>
+              <label>
+                <span>결제자</span>
+                <select name="paidBy" id="expense-paid-by"></select>
+              </label>
+              <label>
+                <span>나눌 인원</span>
+                <input name="splitCount" type="number" min="1" max="3" step="1" value="3">
+              </label>
+              <label class="expense-form-memo">
+                <span>메모</span>
+                <input name="memo" type="text" placeholder="선택 입력" autocomplete="off">
+              </label>
+            </div>
+          </form>
+
+          <div class="expense-list-head">
+            <div>
+              <span class="mini-label">Expense rows</span>
+              <h3>예정 항목과 입력 내역</h3>
+            </div>
+            <p id="expense-save-state">브라우저에 자동 저장됩니다.</p>
+          </div>
+          <div class="expense-list" id="expense-list"></div>
+        </div>
       </section>
 
       <section class="places-section" id="places">
