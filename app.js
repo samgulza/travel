@@ -50,7 +50,7 @@
     target.innerHTML = [
       factCard("날짜", "6.21 - 6.23"),
       factCard("멤버", data.trip.people.join(" · ")),
-      factCard("핵심", data.trip.themes.join(" · ")),
+      factCard("갈 때 KTX", `${data.ktxOutbound.departureTime} 용산 → ${data.ktxOutbound.arrivalTime} 전주`),
       factCard("확정 장소", `${knownPlaces().length}곳`)
     ].join("");
   }
@@ -88,6 +88,9 @@
 
   function renderDaySection(day) {
     const pieces = [];
+    if (day.date === data.ktxOutbound?.date) {
+      pieces.push(renderKtxOutboundCard(data.ktxOutbound));
+    }
     day.events.forEach((event, index) => {
       pieces.push(renderEventCard(event));
       const route = findRouteForEventPair(day.id, event.placeId, day.events[index + 1]?.placeId);
@@ -108,6 +111,43 @@
         </div>
         ${pieces.join("")}
       </section>
+    `;
+  }
+
+  function renderKtxOutboundCard(outbound) {
+    const seats = (outbound.seats || []).map((seat) => `
+      <div class="ktx-train compact">
+        <div>
+          <strong>${escapeHtml(seat.name)}</strong>
+          <span>${escapeHtml(seat.car)} · ${escapeHtml(seat.seat)}</span>
+        </div>
+        <span class="seat-badge is-open">좌석 확정</span>
+      </div>
+    `).join("");
+    const steps = (outbound.accessPlan?.steps || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("");
+
+    return `
+      <article class="ktx-card ktx-outbound-card" id="ktx-outbound-card">
+        <div class="ktx-head">
+          <div>
+            <span class="mini-label">6/21 갈 때 KTX</span>
+            <h4>${escapeHtml(outbound.route)} · ${escapeHtml(outbound.departureTime)} → ${escapeHtml(outbound.arrivalTime)}</h4>
+          </div>
+          <span class="ktx-status">${escapeHtml(outbound.trainLabel || "확정")}</span>
+        </div>
+        <p>${escapeHtml(outbound.meetupNote || "")}</p>
+        <div class="ktx-meta">
+          <span>출발 ${escapeHtml(outbound.departureStation)} ${escapeHtml(outbound.departureTime)}</span>
+          <span>도착 ${escapeHtml(outbound.arrivalStation)} ${escapeHtml(outbound.arrivalTime)}</span>
+        </div>
+        <div class="ktx-trains">${seats}</div>
+        <div class="access-plan">
+          <strong>${escapeHtml(outbound.accessPlan?.title || "역 이동 플랜")}</strong>
+          <p>${escapeHtml(outbound.accessPlan?.summary || "")}</p>
+          <ol>${steps}</ol>
+          <span>${escapeHtml(outbound.accessPlan?.caution || "")}</span>
+        </div>
+      </article>
     `;
   }
 

@@ -8,6 +8,31 @@ window.TRAVEL_DATA = {
     themes: ["맛집", "테니스", "사우나", "해장"],
     basePlaceId: "stay-gijiro70"
   },
+  ktxOutbound: {
+    date: "2026-06-21",
+    route: "용산 → 전주",
+    departureStation: "용산",
+    arrivalStation: "전주",
+    departureTime: "08:40",
+    arrivalTime: "10:19",
+    trainLabel: "KTX 확정",
+    meetupNote: "조구는 전주에서 합류",
+    seats: [
+      { name: "쩡짱", car: "11호차", seat: "14A" },
+      { name: "조동", car: "11호차", seat: "14B" }
+    ],
+    accessPlan: {
+      title: "상봉역 → 용산역 권장 출발 플랜",
+      summary: "08:40 KTX라 용산역에는 08:15-08:20쯤 도착하는 걸 목표로 잡기.",
+      caution: "실시간/당일 열차 간격은 바뀔 수 있어 출발 전 네이버지도·코레일에서 한 번 더 확인.",
+      steps: [
+        "07:25-07:30 상봉역 도착",
+        "07:35-07:45 경의중앙선 용산/문산 방면 탑승",
+        "08:10-08:20 용산역 도착 목표",
+        "KTX 승강장 이동 후 08:40 전주행 탑승"
+      ]
+    }
+  },
   ktxReturnFallback: {
     schemaVersion: 1,
     status: "unavailable",

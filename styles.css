@@ -482,6 +482,16 @@ section {
   background: linear-gradient(180deg, #ffffff 0%, #fbfbfd 100%);
 }
 
+.ktx-outbound-card {
+  border-color: rgba(0, 113, 227, 0.18);
+  background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%);
+}
+
+.ktx-outbound-card .ktx-status {
+  background: rgba(0, 113, 227, 0.11);
+  color: var(--blue);
+}
+
 .ktx-head,
 .ktx-meta,
 .ktx-train {
@@ -542,6 +552,40 @@ section {
   border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.72);
+}
+
+.ktx-train.compact {
+  min-height: 50px;
+}
+
+.access-plan {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(0, 113, 227, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.access-plan strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.access-plan p,
+.access-plan span {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.access-plan ol {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .ktx-train strong,
